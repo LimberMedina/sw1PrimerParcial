@@ -6,6 +6,7 @@ import { Export } from "@antv/x6-plugin-export";
 import type { Tool } from "./Sidebar";
 import { IconCenter, IconCursor, IconZoomIn, IconZoomOut } from "../icons";
 import { Save, Share2 } from "lucide-react";
+import toast from "react-hot-toast";
 
 type Props = {
   graph: Graph | null;
@@ -30,20 +31,7 @@ export default function DiagramControls({
   onGetShareLink,
 }: Props) {
   const minimapRef = useRef<HTMLDivElement | null>(null);
-  const [toast, setToast] = useState<{
-    message: string;
-    type: "success" | "error";
-  } | null>(null);
   const [sharing, setSharing] = useState(false);
-
-  // Toast helper
-  const showToast = (
-    message: string,
-    type: "success" | "error" = "success"
-  ) => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  };
 
   // Plugins
   useEffect(() => {
@@ -75,18 +63,108 @@ export default function DiagramControls({
   const center = () => graph?.centerContent();
   const exportPNG = async () => {
     if (!graph) return;
-    await graph.exportPNG(`${exportName}.png`);
-    showToast("PNG exportado correctamente ✅");
+    
+    try {
+      // Verificar que hay contenido
+      const nodes = graph.getNodes();
+      if (nodes.length === 0) {
+        toast.error("No hay contenido para exportar");
+        return;
+      }
+      
+      // Guardar el estado actual
+      const currentZoom = graph.zoom();
+      const currentTranslate = graph.translate();
+      
+      try {
+        // Ajustar la vista para mostrar todo el contenido
+        graph.zoomToFit({ padding: 20 });
+        
+        // Esperar para el renderizado
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Método alternativo: capturar el canvas directamente
+        const container = graph.container as HTMLElement;
+        const canvas = container.querySelector('canvas') as HTMLCanvasElement;
+        
+        if (canvas) {
+          // Crear un canvas temporal con las dimensiones deseadas
+          const tempCanvas = document.createElement('canvas');
+          const ctx = tempCanvas.getContext('2d');
+          
+          if (ctx) {
+            // Dimensiones del PNG
+            tempCanvas.width = 1200;
+            tempCanvas.height = 800;
+            
+            // Fondo blanco
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+            
+            // Dibujar el canvas original escalado
+            ctx.drawImage(canvas, 0, 0, tempCanvas.width, tempCanvas.height);
+            
+            // Convertir a PNG y descargar
+            tempCanvas.toBlob((blob) => {
+              if (blob) {
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.download = `${exportName}.png`;
+                link.href = url;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                
+                toast.success("PNG exportado correctamente ✅");
+              } else {
+                toast.error("Error al generar el PNG");
+              }
+            }, 'image/png', 1);
+          } else {
+            toast.error("Error al crear el contexto del canvas");
+          }
+        } else {
+          // Fallback: usar el método original de X6
+          if (!graph.getPlugin('export')) {
+            graph.use(new Export());
+          }
+          
+          graph.toPNG((dataURL: string) => {
+            const link = document.createElement('a');
+            link.download = `${exportName}.png`;
+            link.href = dataURL;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            toast.success("PNG exportado correctamente ✅");
+          }, {
+            width: 1200,
+            height: 800,
+            backgroundColor: '#ffffff',
+            quality: 1
+          });
+        }
+      } finally {
+        // Restaurar el estado original
+        graph.zoom(currentZoom);
+        graph.translate(currentTranslate.tx, currentTranslate.ty);
+      }
+    } catch (error) {
+      console.error("Error al exportar PNG:", error);
+      toast.error("Error al exportar el diagrama");
+    }
   };
 
   const handleSave = async () => {
     if (!onSave) return;
     try {
       await onSave();
-      showToast("Diagrama guardado correctamente", "success");
+      toast.success("Diagrama guardado correctamente");
     } catch (e) {
       console.error("Error al guardar", e);
-      showToast("Error al guardar", "error");
+      toast.error("Error al guardar");
     }
   };
 
@@ -95,7 +173,7 @@ export default function DiagramControls({
     if (sharing) return;
 
     if (!onGetShareLink) {
-      showToast("No hay handler para obtener el enlace de compartir.", "error");
+      toast.error("No hay handler para obtener el enlace de compartir.");
       return;
     }
     try {
@@ -105,18 +183,18 @@ export default function DiagramControls({
         // Intento con Clipboard API
         try {
           await navigator.clipboard.writeText(url);
-          showToast("Enlace copiado al portapapeles 🔗", "success");
+          toast.success("Enlace copiado al portapapeles 🔗");
         } catch {
           // Fallback: prompt
           window.prompt("Copia el enlace:", url);
-          showToast("Enlace generado. Cópialo desde el cuadro.", "success");
+          toast.success("Enlace generado. Cópialo desde el cuadro.");
         }
       } else {
-        showToast("No se pudo generar el enlace de compartir.", "error");
+        toast.error("No se pudo generar el enlace de compartir.");
       }
     } catch (err) {
       console.error("Compartir enlace error:", err);
-      showToast("Error al generar el enlace de compartir.", "error");
+      toast.error("Error al generar el enlace de compartir.");
     } finally {
       setSharing(false);
     }
@@ -230,18 +308,6 @@ export default function DiagramControls({
         ref={minimapRef}
         className="pointer-events-auto absolute bottom-4 right-4 z-10 rounded-xl border border-gray-200 bg-white/90 p-2 shadow"
       />
-
-      {/* Toast */}
-      {toast && (
-        <div
-          className={
-            "fixed bottom-6 right-6 z-50 rounded-xl px-4 py-3 shadow-lg text-white transition-all duration-300 " +
-            (toast.type === "success" ? "bg-green-600" : "bg-red-600")
-          }
-        >
-          {toast.message}
-        </div>
-      )}
     </>
   );
 }

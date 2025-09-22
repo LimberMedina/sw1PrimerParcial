@@ -7,6 +7,7 @@ import { ProjectsModule } from './projects/projects.module';
 import { DiagramsModule } from './diagrams/diagrams.module';
 import { DiagramRealtimeModule } from './diagram-realtime/diagram-realtime.module';
 import { ShareModule } from './share/share.module';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ShareModule } from './share/share.module';
     DiagramsModule,
     ShareModule,
     DiagramRealtimeModule,
+    AiModule,
   ],
 })
 export class AppModule {}

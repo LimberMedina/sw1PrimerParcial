@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Graph } from "@antv/x6";
 import { Selection } from "@antv/x6-plugin-selection";
+import { Toaster } from "react-hot-toast";
 
 import { api } from "../lib/api";
 import { useAuth } from "../state/AuthContext";
@@ -10,6 +11,7 @@ import { useAuth } from "../state/AuthContext";
 import { registerShapesOnce } from "../uml/shapes";
 import Sidebar from "../uml/ui/Sidebar";
 import type { Tool } from "../uml/ui/Sidebar";
+import AIAssistant from "../uml/ui/AIAssistant";
 
 import { toSnapshot, fromSnapshot } from "../uml/snapshot";
 
@@ -1168,6 +1170,53 @@ export default function Editor() {
   // 🔐 Solo el owner comparte; en público (readonly) no habrá ownerId
   const canShare = !!(!readonly && user && ownerId && user.id === ownerId);
 
+  // Funciones para el asistente de IA
+  const handleAddClassFromAI = (className: string, attributes: string[], methods: string[]) => {
+    if (!graphRef.current) return;
+    
+    // Crear un nodo en el centro del canvas
+    const centerX = 400;
+    const centerY = 300;
+    
+    const node = graphRef.current.addNode({
+      shape: 'uml-class',
+      x: centerX,
+      y: centerY,
+      data: {
+        name: className,
+        attributes: attributes,
+        methods: methods
+      }
+    });
+    
+    // Ajustar el tamaño del nodo
+    resizeUmlClass(node);
+  };
+
+  const handleAddRelationFromAI = (from: string, to: string, type: string) => {
+    if (!graphRef.current) return;
+    
+    const nodes = graphRef.current.getNodes();
+    const sourceNode = nodes.find((n: any) => n.getData()?.name === from);
+    const targetNode = nodes.find((n: any) => n.getData()?.name === to);
+    
+    if (sourceNode && targetNode) {
+      // Mapear tipos de relación a estilos de X6
+      const edgeStyle = EDGE_STYLE[type as EdgeKind] || EDGE_STYLE.assoc;
+      
+      graphRef.current.addEdge({
+        source: sourceNode.id,
+        target: targetNode.id,
+        data: {
+          name: '',
+          multSource: '',
+          multTarget: ''
+        },
+        ...edgeStyle
+      });
+    }
+  };
+
   return (
     <div className="flex h-screen bg-white">
       {/* Sidebar: puedes ocultarla en lectura si lo prefieres */}
@@ -1176,6 +1225,7 @@ export default function Editor() {
         onToolClick={onToolClick}
         onBack={() => navigate("/app")}
         onSave={readonly ? undefined : save}
+        graph={graphRef.current}
         onClassDragStart={handleClassDragStart}
       />
 
@@ -1277,6 +1327,39 @@ export default function Editor() {
           />
         )}
       </div>
+      
+      {/* Asistente de IA */}
+      <AIAssistant 
+        graph={graphRef.current}
+        onAddClass={handleAddClassFromAI}
+        onAddRelation={handleAddRelationFromAI}
+      />
+      
+      {/* Toast notifications */}
+      <Toaster 
+        position="bottom-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: '#363636',
+            color: '#fff',
+          },
+          success: {
+            duration: 3000,
+            iconTheme: {
+              primary: '#4ade80',
+              secondary: '#fff',
+            },
+          },
+          error: {
+            duration: 4000,
+            iconTheme: {
+              primary: '#ef4444',
+              secondary: '#fff',
+            },
+          },
+        }}
+      />
     </div>
   );
 }

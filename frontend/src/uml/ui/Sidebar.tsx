@@ -1,5 +1,8 @@
 import React from "react";
-import { IconBack, IconDownload } from "../icons";
+import { IconBack } from "../icons";
+import { JavaSpringGenerator } from "../codegen/JavaSpringGenerator";
+import type { Graph } from "@antv/x6";
+import toast from "react-hot-toast";
 
 export type Tool =
   | "cursor"
@@ -18,7 +21,7 @@ type Props = {
   tool: Tool;
   onToolClick: (t: Tool) => void;
   onBack: () => void;
-  onSave: () => void;
+  graph?: Graph | null;
 
   // Drag para crear clase
   onClassDragStart?: (e: React.DragEvent) => void;
@@ -127,9 +130,106 @@ export default function Sidebar({
   tool,
   onToolClick,
   onBack,
-  onSave,
+  graph,
   onClassDragStart,
 }: Props) {
+  const handleGenerateCode = async () => {
+    try {
+      // Usar el grafo pasado como prop
+      if (!graph) {
+        console.error('No se pudo obtener el grafo');
+        toast.error('Error: No se pudo acceder al diagrama. Asegúrate de que el diagrama esté cargado.');
+        return;
+      }
+      
+      // Obtener todos los nodos del grafo
+      const nodes = graph.getNodes();
+      const classes = nodes.map((node: any) => {
+        const data = node.getData?.() ?? {};
+        
+        // Obtener el nombre de la clase
+        const name = data.name || 
+                    node.getAttrByPath?.("name/text") || 
+                    node.attr?.("name/text") || 
+                    'UnnamedClass';
+        
+        // Obtener atributos (pueden estar como array o string separado por \n)
+        let attributes = data.attributes || [];
+        if (!Array.isArray(attributes)) {
+          const attrsText = data.attributes || 
+                           node.getAttrByPath?.("attrs/text") || 
+                           node.attr?.("attrs/text") || 
+                           "";
+          attributes = String(attrsText).split("\n")
+            .map(s => s.trim())
+            .filter(Boolean);
+        }
+        
+        // Obtener métodos (pueden estar como array o string separado por \n)
+        let methods = data.methods || [];
+        if (!Array.isArray(methods)) {
+          const methodsText = data.methods || 
+                             node.getAttrByPath?.("methods/text") || 
+                             node.attr?.("methods/text") || 
+                             "";
+          methods = String(methodsText).split("\n")
+            .map(s => s.trim())
+            .filter(Boolean);
+        }
+        
+        return {
+          name: String(name),
+          attributes: attributes,
+          methods: methods
+        };
+      });
+      
+      if (classes.length === 0) {
+        toast.error('No hay clases en el diagrama para generar código');
+        return;
+      }
+      
+      // Crear el generador
+      const generator = new JavaSpringGenerator('com.example');
+      
+      // Agregar clases al generador
+      classes.forEach((cls: any) => {
+        generator.addClass({
+          name: cls.name,
+          attributes: cls.attributes || [],
+          methods: cls.methods || []
+        });
+      });
+      
+      // Generar el código
+      const files = generator.generateAll();
+      
+      // Crear un archivo de texto con todo el código
+      let allCode = '';
+      Object.entries(files).forEach(([filename, content]) => {
+        allCode += `\n\n// ===== ${filename} =====\n\n`;
+        allCode += content;
+      });
+      
+      // Crear un blob con el código
+      const blob = new Blob([allCode], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      
+      // Crear un enlace para descargar el archivo
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'spring-boot-code.txt';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast.success('¡Código Spring Boot generado exitosamente!');
+    } catch (error) {
+      console.error('Error al generar el código:', error);
+      toast.error('Error al generar el código. Por favor revisa la consola para más detalles.');
+    }
+  };
   const relationButtons: Array<{
     key: Tool;
     label: string;
@@ -245,18 +345,24 @@ export default function Sidebar({
           </div>
         </section>
 
-        {/* Save / Export */}
+        {/* Code Generation */}
         <section>
           <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700">
             <span className="inline-block h-4 w-4 border-2 border-indigo-400" />
             Code Generation
           </h3>
-          <button
-            onClick={onSave}
-            className="w-full rounded-xl bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow hover:bg-indigo-700 flex items-center gap-2"
-          >
-            <IconDownload className="h-4 w-4" /> Generate
-          </button>
+          <div className="space-y-2">
+            <button
+              onClick={handleGenerateCode}
+              className="w-full flex items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-medium text-indigo-700 hover:bg-indigo-100"
+              title="Generar código Spring Boot"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+              Generar Código Spring Boot
+            </button>
+          </div>
         </section>
       </div>
     </aside>
