@@ -10,7 +10,7 @@ export class AiController {
   constructor(private readonly aiService: AiService) {}
 
   @Post('analyze-uml')
-  async analyzeUml(@Body() analyzeUmlDto: AnalyzeUmlDto): Promise<AiResponse> {
-    return this.aiService.analyzeUmlRequest(analyzeUmlDto.userInput);
+  async analyzeUml(@Body() body: any): Promise<AiResponse> {
+    return this.aiService.analyzeUmlRequest(body.userInput);
   }
 }

@@ -1174,20 +1174,40 @@ export default function Editor() {
   const handleAddClassFromAI = (className: string, attributes: string[], methods: string[]) => {
     if (!graphRef.current) return;
     
-    // Crear un nodo en el centro del canvas
-    const centerX = 400;
-    const centerY = 300;
+    // Obtener todas las clases existentes para calcular posición
+    const existingNodes = graphRef.current.getNodes();
+    const nodeCount = existingNodes.length;
+    
+    // Distribuir las clases en una cuadrícula
+    const cols = Math.ceil(Math.sqrt(nodeCount + 1));
+    const row = Math.floor(nodeCount / cols);
+    const col = nodeCount % cols;
+    
+    const spacing = 250;
+    const startX = 200;
+    const startY = 150;
+    
+    const x = startX + col * spacing;
+    const y = startY + row * spacing;
     
     const node = graphRef.current.addNode({
       shape: 'uml-class',
-      x: centerX,
-      y: centerY,
+      x: x,
+      y: y,
+      width: (CLASS_SIZES as any).WIDTH,
+      height: (CLASS_SIZES as any).HEIGHT,
+      attrs: {
+        name: { text: className },
+        attrs: { text: attributes.join('\n') },
+        methods: { text: methods.join('\n') },
+      },
+      zIndex: 2,
       data: {
         name: className,
         attributes: attributes,
         methods: methods
       }
-    });
+    }) as any;
     
     // Ajustar el tamaño del nodo
     resizeUmlClass(node);
@@ -1204,16 +1224,39 @@ export default function Editor() {
       // Mapear tipos de relación a estilos de X6
       const edgeStyle = EDGE_STYLE[type as EdgeKind] || EDGE_STYLE.assoc;
       
-      graphRef.current.addEdge({
-        source: sourceNode.id,
-        target: targetNode.id,
+      // Obtener centros de los nodos para calcular lados
+      const sc = sourceNode.getBBox().center;
+      const tc = targetNode.getBBox().center;
+      
+      const sourceSide = pickSide(sc, tc);
+      const targetSide = opposite(sourceSide);
+      
+      const sourcePort = allocPortPreferMiddle(sourceNode.id, sourceSide);
+      const targetPort = allocPortPreferMiddle(targetNode.id, targetSide);
+      
+      const edge = graphRef.current.addEdge({
+        attrs: { 
+          line: {
+            stroke: edgeStyle.stroke ?? "#6366f1",
+            strokeWidth: edgeStyle.strokeWidth ?? 1.5,
+            strokeDasharray: edgeStyle.dashed ? 4 : undefined,
+            sourceMarker: edgeStyle.sourceMarker ?? null,
+            targetMarker: edgeStyle.targetMarker ?? null,
+          }
+        },
+        zIndex: 1000,
+        router: { name: "orth", args: { padding: 6 } },
+        connector: { name: "rounded" },
+        source: { cell: sourceNode.id, port: sourcePort },
+        target: { cell: targetNode.id, port: targetPort },
         data: {
           name: '',
           multSource: '',
           multTarget: ''
-        },
-        ...edgeStyle
+        }
       });
+      
+      applyEdgeLabels(edge);
     }
   };
 
@@ -1224,7 +1267,6 @@ export default function Editor() {
         tool={tool}
         onToolClick={onToolClick}
         onBack={() => navigate("/app")}
-        onSave={readonly ? undefined : save}
         graph={graphRef.current}
         onClassDragStart={handleClassDragStart}
       />

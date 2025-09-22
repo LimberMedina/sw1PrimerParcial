@@ -71,7 +71,7 @@ export class AiService {
             content: userInput,
           },
         ],
-        model: 'llama3-8b-8192', // Modelo rápido y gratuito de Groq
+        model: 'llama-3.1-8b-instant', // Modelo actualizado y gratuito de Groq
         temperature: 0.7,
         max_tokens: 1000,
       });

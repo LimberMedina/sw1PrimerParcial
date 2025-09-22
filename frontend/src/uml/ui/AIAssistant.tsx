@@ -79,7 +79,7 @@ export default function AIAssistant({ graph, onAddClass, onAddRelation }: AIAssi
   const simulateAIResponse = async (input: string): Promise<{content: string, suggestions?: any}> => {
     try {
       // Llamar a la API del backend
-      const response = await fetch('/api/ai/analyze-uml', {
+      const response = await fetch('http://localhost:3000/api/ai/analyze-uml', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
